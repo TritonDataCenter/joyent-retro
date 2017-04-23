@@ -1,0 +1,39 @@
+{
+  "alias": "{{ALIAS}}",
+  "autoboot": true,
+  "brand": "joyent-minimal",
+  "cpu_cap": 3200,
+  "cpu_shares": 64,
+  "customer_metadata": {},
+  "delegate_dataset": true,
+  "dns_domain": "jenkins.joyent.us",
+  "fs_allowed": "ufs,pcfs,tmpfs",
+  "image_uuid": "{{IMAGE_UUID}}",
+  "internal_metadata": {},
+  "limit_priv": "default",
+  "max_locked_memory": 8192,
+  "max_lwps": 4000,
+  "max_physical_memory": 8192,
+  "max_swap": 16384,
+  "nics": [
+    {
+      "interface": "net0",
+      "nic_tag": "vswitch0",
+      "gateway": "172.16.9.1",
+      "primary": true,
+      "ip": "172.16.9.3",
+      "netmask": "255.255.255.0"
+    }
+  ],
+  "quota": 300,
+  "resolvers": [
+    "8.8.8.8",
+    "8.8.4.4"
+  ],
+  "routes": {},
+  "tags": {},
+  "tmpfs": 0,
+  "uuid": "{{UUID}}",
+  "zfs_io_priority": 1000,
+  "zfs_root_compression": "lzjb"
+}

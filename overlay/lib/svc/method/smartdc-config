@@ -1,0 +1,125 @@
+#!/bin/bash
+#
+# CDDL HEADER START
+#
+# The contents of this file are subject to the terms of the
+# Common Development and Distribution License (the "License").
+# You may not use this file except in compliance with the License.
+#
+# You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+# or http://www.opensolaris.org/os/licensing.
+# See the License for the specific language governing permissions
+# and limitations under the License.
+#
+# When distributing Covered Code, include this CDDL HEADER in each
+# file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+# If applicable, add the following below this CDDL HEADER, with the
+# fields enclosed by brackets "[]" replaced with your own identifying
+# information: Portions Copyright [yyyy] [name of copyright owner]
+#
+# CDDL HEADER END
+#
+#
+# Copyright 2011 Joyent, Inc.  All rights reserved.
+# Use is subject to license terms.
+
+set -o errexit
+set -o xtrace
+
+. /lib/svc/share/smf_include.sh
+. /lib/sdc/config.sh
+
+export PATH="/opt/custom/bin:/usr/sbin:/sbin:/usr/bin"
+
+set_root_password() {
+    enc_password=$1
+
+    sed -e "s|^root:[^\:]*:|root:${enc_password}:|" /etc/shadow > /etc/shadow.new \
+      && chmod 400 /etc/shadow.new \
+      && mv /etc/shadow.new /etc/shadow
+}
+
+case "$1" in
+'start')
+
+    # Generate the config
+    if [[ ! -f /usbkey/config ]]; then
+        NICS=$(mdata-get sdc:nics)
+        MAC=$(json -Ha -c 'this.primary === true' mac <<<${NICS})
+        IP=$(json -Ha -c 'this.primary === true' ip <<<${NICS})
+        NETMASK=$(json -Ha -c 'this.primary === true' netmask <<<${NICS})
+        GATEWAY=$(json -Ha -c 'this.primary === true' gateway <<<${NICS})
+        UUID=$(sysinfo | json UUID)
+        SHORT_ID=$(cut -d'-' -f1 <<<${UUID})
+        HOSTNAME=$(mdata-get sdc:hostname || /bin/true)
+        [[ -z ${HOSTNAME} ]] && HOSTNAME=$(mdata-get sdc:alias)
+        # ensure hostname includes SHORT_ID
+        [[ ${HOSTNAME} =~ ${SHORT_ID} ]] || HOSTNAME="${SHORT_ID}"
+        [[ -z ${HOSTNAME} ]] && HOSTNAME=$(mdata-get sdc:alias)
+        DNS_DOMAIN=$(mdata-get sdc:dns_domain || /bin/true)
+        [[ -z ${DNS_DOMAIN} ]] && DNS_DOMAIN="joyent.us"
+
+        (cat > /usbkey/config) <<EOF
+admin_nic=${MAC}
+admin_ip=${IP}
+admin_netmask=${NETMASK}
+admin_gateway=${GATEWAY}
+headnode_default_gateway=${GATEWAY}
+dns_resolvers=8.8.8.8,8.8.4.4
+dns_domain=${DNS_DOMAIN}
+ntp_hosts=0.smartos.pool.ntp.org
+hostname=${HOSTNAME}
+etherstub="vswitch0"
+EOF
+    fi
+
+    #
+    # If we have ntpd binary replacements, use those
+    #
+    if [[ -f /opt/custom/bin/ntpd && -z $(mount | grep ^/usr/sbin/ntpd) ]]; then
+        mount -O -F lofs /opt/custom/bin/ntpd /usr/sbin/ntpd
+    fi
+    if [[ -f /opt/custom/bin/ntpq && -z $(mount | grep ^/usr/sbin/ntpq) ]]; then
+        mount -O -F lofs /opt/custom/bin/ntpq /usr/sbin/ntpq
+    fi
+
+    # This puts config vars in CONFIG_
+    load_sdc_config
+    load_sdc_sysinfo
+
+    # Boot parameter takes precidence over config
+    if [[ -n "${SYSINFO_Bootparam_root_shadow}" ]]; then
+        set_root_password "${SYSINFO_Bootparam_root_shadow}"
+        echo "Set root password boot parameters."
+    elif [[ -n "${CONFIG_root_shadow}" ]]; then
+        set_root_password "${CONFIG_root_shadow}"
+        echo "Set root password from config."
+    else
+        echo "No root shadow entry in the config, cannot set."
+    fi
+
+    # set the keymap. For dvorak for instance
+    if [[ -n ${CONFIG_default_keymap} ]]; then
+        /usr/bin/loadkeys ${CONFIG_default_keymap}
+    fi
+
+    # Enable virtual terminals to support interactive installation
+    vtdaemon="svc:/system/vtdaemon"
+    svccfg -s ${vtdaemon} setprop options/hotkeys=true
+    svcadm refresh ${vtdaemon}
+    svcadm enable ${vtdaemon}
+
+    # force update of sysinfo (and dump to stdout so we have in the log)
+    sysinfo -f
+
+    ;;
+
+'stop')
+    ;;
+
+*)
+    echo "Usage: $0 { start | stop }"
+    exit $SMF_EXIT_ERR_FATAL
+    ;;
+esac
+exit $SMF_EXIT_OK

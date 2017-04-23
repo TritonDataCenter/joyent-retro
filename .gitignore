@@ -1,0 +1,7 @@
+custom/etc/ssl/
+data/ca-*
+data/platform-*.tgz
+output/
+platmnt/
+stage/
+usbmnt/

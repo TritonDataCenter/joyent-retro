@@ -1,0 +1,36 @@
+{
+  "v": 2,
+  "uuid": "{{UUID}}",
+  "owner": "00000000-0000-0000-0000-000000000000",
+  "name": "joyent-retro-{{PLATFORM}}",
+  "version": "{{VERSION}}",
+  "state": "active",
+  "disabled": false,
+  "published_at": "{{DATE}}",
+  "type": "zvol",
+  "os": "other",
+  "files": [
+    {
+      "sha1": "{{SHA1}}",
+      "size": {{SIZE}},
+      "compression": "gzip"
+    }
+  ],
+  "description": "joyent-retro build of SmartOS {{PLATFORM}}",
+  "requirements": {
+    "min_platform": {
+      "7.0": "20130723T015243Z"
+    },
+    "networks": [
+      {
+        "name": "net0",
+        "description": "public"
+      }
+    ],
+    "ssh_key": true
+  },
+  "nic_driver": "e1000",
+  "disk_driver": "ide",
+  "cpu_type": "qemu64",
+  "image_size": 1024
+}

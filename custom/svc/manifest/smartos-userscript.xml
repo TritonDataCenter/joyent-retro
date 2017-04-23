@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<!DOCTYPE service_bundle SYSTEM "/usr/share/lib/xml/dtd/service_bundle.dtd.1">
+<!--
+    Copyright (c) 2015, Joyent, Inc. All rights reserved.
+ -->
+<service_bundle type='manifest' name='export'>
+  <service name='smartos/userscript' type='service' version='0'>
+    <create_default_instance enabled='true'/>
+    <single_instance/>
+    <dependency name='smartdc-init' grouping='require_all' restart_on='none' type='service'>
+      <service_fmri value='svc:/system/smartdc/init:default'/>
+    </dependency>
+    <exec_method type='method' name='start' exec='/opt/custom/svc/method/smartos-userscript %m' timeout_seconds='0'/>
+    <exec_method type='method' name='stop' exec=':true' timeout_seconds='60' />
+    <property_group name='startd' type='framework'>
+      <propval name='duration' type='astring' value='transient'/>
+    </property_group>
+    <stability value='Unstable'/>
+    <template>
+      <common_name>
+        <loctext xml:lang='C'>SmartOS Userscript Runner</loctext>
+      </common_name>
+    </template>
+  </service>
+</service_bundle>

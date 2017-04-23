@@ -1,0 +1,319 @@
+#!/bin/bash
+#
+# CDDL HEADER START
+#
+# The contents of this file are subject to the terms of the
+# Common Development and Distribution License, Version 1.0 only
+# (the "License").  You may not use this file except in compliance
+# with the License.
+#
+# You can obtain a copy of the license at COPYING
+# See the License for the specific language governing permissions
+# and limitations under the License.
+#
+# When distributing Covered Code, include this CDDL HEADER in each
+# file and include the License file at COPYING.
+# If applicable, add the following below this CDDL HEADER, with the
+# fields enclosed by brackets "[]" replaced with your own identifying
+# information: Portions Copyright [yyyy] [name of copyright owner]
+#
+# CDDL HEADER END
+#
+# Copyright (c) 2015 Joyent Inc.
+
+set -o xtrace
+
+DEFAULT_SWAP=0.25x
+MIN_SWAP=2
+MIN_DISK_TO_RAM=2
+
+
+fatal()
+{
+    echo "Error: $1"
+    echo "Error: $1" >>/dev/console
+    exit $SMF_EXIT_ERR_FATAL
+}
+
+. /lib/svc/share/smf_include.sh
+. /lib/svc/share/fs_include.sh
+
+# first of all, if we aren't the global zone this doesn't make any sense to run
+
+smf_is_globalzone || exit $SMF_EXIT_OK
+
+# Need to run syseventd now because it talks to devfs to create /dev/dsk
+# so that we can try to import the zpool.
+/usr/lib/sysevent/syseventd
+
+# Gather system data
+. /lib/sdc/config.sh
+load_sdc_sysinfo
+
+function destroy_zpools
+{
+    for pool in $(zpool list -p -o name | grep -v NAME) ; do
+        zpool destroy -f ${pool}
+    done
+}
+
+function mount_zfs
+{
+    local dataset=$1
+    local mountpoint=$2
+    local output=
+
+    #
+    # Try to mount the ZFS dataset.  If the mountpoint is busy, wait five
+    # seconds and try again.  Fail if the mount attempt returns EBUSY three
+    # consecutive times.
+    #
+    for i in {1..3}; do
+        output=$(mount -F zfs ${dataset} ${mountpoint} 2>&1)
+        if [[ $? -eq 0 ]]; then
+            break
+        fi
+
+        if [ "${output}" == "mount failed: Device busy" ]; then
+            sleep 5
+        else
+            echo ${output} 1>&2
+            return
+        fi
+    done
+
+    # The mount attempt must have failed
+    echo ${output} 1>&2
+}
+
+function check_disk_space
+{
+    local pool_json="$1"
+    local RAM_MiB=${SYSINFO_MiB_of_Memory}
+    local space
+    space=$(/usr/bin/json capacity < ${pool_json})
+    local Disk_MiB
+    Disk_MiB=$(( $space / 1024 / 1024 ))
+    local msg
+
+    msg='Cannot setup: system has %dG memory but %dG disk (>= %dG expected)'
+
+    Min_Disk_MiB=$(( $RAM_MiB * $MIN_DISK_TO_RAM ))
+
+    if [[ ${Disk_MiB} -lt ${Min_Disk_MiB} ]]; then
+        local RAM_GiB Disk_GiB Min_Disk_GiB
+        RAM_GiB=$(( $RAM_MiB / 1024 ))
+        Disk_GiB=$(( $Disk_MiB / 1024 ))
+        Min_Disk_GiB=$(( $Min_Disk_MiB / 1024 ))
+
+        msg=$(printf "${msg}" $RAM_GiB $Disk_GiB $Min_Disk_GiB)
+        fatal "${msg}"
+    fi
+}
+
+function ceil
+{
+    x=$1
+
+    # ksh93 supports a bunch of math functions that don't exist in bash.
+    # including floating point stuff.
+    expression="echo \$((ceil(${x})))"
+    result=$(ksh93 -c "${expression}")
+
+    echo ${result}
+}
+
+#
+# Value can be in x (multiple of RAM) or g (GiB)
+#
+# eg: result=$(swap_in_GiB "0.25x")
+#     result=$(swap_in_GiB "1.5x")
+#     result=$(swap_in_GiB "2x")
+#     result=$(swap_in_GiB "8g")
+#
+function swap_in_GiB
+{
+    swap=$(echo $1 | tr [:upper:] [:lower:])
+
+    # Find system RAM for multiple
+    RAM_MiB=${SYSINFO_MiB_of_Memory}
+    RAM_GiB=$(ceil "${RAM_MiB} / 1024.0")
+
+    swap_val=${swap%?}      # number
+    swap_arg=${swap#${swap%?}}  # x or g
+
+    result=
+    case ${swap_arg} in
+        x)
+        result=$(ceil "${swap_val} * ${RAM_GiB}")
+    ;;
+        g)
+        result=${swap_val}
+    ;;
+        *)
+        echo "Unhandled swap argument: '${swap}'"
+        return 1
+    ;;
+    esac
+
+    if [[ -n ${result} ]]; then
+        if [[ ${result} -lt ${MIN_SWAP} ]]; then
+            echo ${MIN_SWAP}
+        else
+            echo ${result}
+        fi
+    fi
+
+    return 0
+}
+
+create_swap()
+{
+    swapvol=$1
+    swapsize=$(swap_in_GiB ${DEFAULT_SWAP})
+
+    if ! zfs list -H -o name ${swapvol}; then
+        #
+        # We cannot allow the swap size to be less than the size of DRAM, lest
+        # we run into the availrmem double accounting issue for locked
+        # anonymous memory that is backed by in-memory swap (which will
+        # severely and artificially limit VM tenancy).  We will therfore not
+        # create a swap device smaller than DRAM -- but we still allow for the
+        # configuration variable to account for actual consumed space by using
+        # it to set the refreservation on the swap volume if/when the
+        # specified size is smaller than DRAM.
+        #
+        minsize=$(swap_in_GiB 1x)
+
+        if [[ $minsize -gt $swapsize ]]; then
+            zfs create -V ${minsize}g ${swapvol}
+            zfs set refreservation=${swapsize}g ${swapvol}
+        else
+            zfs create -V ${swapsize}g ${swapvol}
+        fi
+    fi
+}
+
+#
+# Create a dump device zvol on persistent storage.  The dump device is sized at
+# 50% of the available physical memory.  Only kernel pages (so neither ARC nor
+# user data) are included in the dump, and since those pages are compressed
+# using bzip, it's basically impossible for the dump device to be too small.
+#
+create_dump()
+{
+    dumpvol=$1
+    local dumpsize
+    dumpsize=$(( ${SYSINFO_MiB_of_Memory} / 2 ))
+
+    # Create the dump zvol
+    zfs create -V ${dumpsize}mb -o checksum=noparity ${dumpvol} || \
+        fatal "failed to create the dump zvol"
+}
+
+/bin/bootparams | grep "^noimport=true" >/dev/null
+if [ $? -ne 0 ]; then
+    # If the zpool doesn't exist, then there's nothing to mount.
+
+    # Assume the system zpool is zones, but if a different system pool
+    # identifies itself (by virtue of the .system_pool file being present in the
+    # pool's root dataset), then use that system pool instead.
+    SYS_ZPOOL=zones
+
+    # Import all zpools available
+    for pool in $(zpool import | grep "pool:" | awk '{print $2}') ; do
+        zpool import -f $pool
+        if [[ -f /$pool/.system_pool ]] ; then
+            SYS_ZPOOL=$pool
+            svccfg -s svc:/system/smartdc/init setprop \
+                config/zpool=${SYS_ZPOOL}
+            svccfg -s svc:/system/smartdc/init:default refresh
+        fi
+    done
+
+    # A machine is reset to its original unsetup state (i.e. a 'factory reset')
+    # when the smartdc:factoryreset ZFS user property is set on the var dataset.
+    reset=$(zfs get -H -o value smartdc:factoryreset ${SYS_ZPOOL}/var)
+    if [[ ${reset} == "yes" ]]; then
+        destroy_zpools
+    fi
+
+    mkdir -p /usbkey \
+        && mount -F pcfs -o foldcase /dev/dsk/c0d0p1 /usbkey
+
+    CREATED_OPT="false"
+
+    # For the system zpool, mount and configure all system datasets
+    zpool status -v ${SYS_ZPOOL}
+    if [ $? -ne 0 ]; then
+        # Failed to get status, create the pool
+
+        echo "NOTICE: zpool creating..." >>/dev/console
+
+        pool_json=/tmp/disks.json
+        disklayout > ${pool_json}
+
+        # Confirm we can continue otherwise we'll just bail, otherwise: create pool
+        check_disk_space ${pool_json}
+        mkzpool ${SYS_ZPOOL} ${pool_json}
+
+        # dump
+        create_dump ${SYS_ZPOOL}/dump
+
+        # config
+        zfs create ${SYS_ZPOOL}/config
+        chmod 755 /${SYS_ZPOOL}/config
+        cp -p /etc/zones/* /${SYS_ZPOOL}/config/
+        zfs set mountpoint=legacy ${SYS_ZPOOL}/config
+
+        # cores
+        zfs create -o compression=gzip -o mountpoint=none ${SYS_ZPOOL}/cores
+        zfs create -o quota=10g -o mountpoint=/${SYS_ZPOOL}/global/cores ${SYS_ZPOOL}/cores/global
+
+        # opt
+        zfs create ${SYS_ZPOOL}/opt
+        (cd /${SYS_ZPOOL}/opt && tar -zxvf /usbkey/custom.tgz)
+        CREATED_OPT="true"
+        zfs set mountpoint=legacy ${SYS_ZPOOL}/opt
+
+        # var
+        zfs create ${SYS_ZPOOL}/var
+        chmod 755 /${SYS_ZPOOL}/var
+        (cd /var && find . -print | cpio -pdm /${SYS_ZPOOL}/var/ 2>/dev/null)
+        zfs set mountpoint=legacy ${SYS_ZPOOL}/var
+
+        # swap
+        create_swap ${SYS_ZPOOL}/swap
+
+        # mark as system_pool
+        touch /${SYS_ZPOOL}/.system_pool
+    fi
+
+    mount_zfs ${SYS_ZPOOL}/var /var
+    mount_zfs ${SYS_ZPOOL}/config /etc/zones
+    mount_zfs ${SYS_ZPOOL}/opt /opt
+
+    # Install custom manifests
+    if [[ ${CREATED_OPT} == "true" ]]; then
+        cp /opt/custom/svc/manifest/*.xml /var/svc/manifest/site/
+    fi
+    mount -O -F lofs /var/svc/manifest/site /opt/custom/svc/manifest
+
+    swap -a /dev/zvol/dsk/${SYS_ZPOOL}/swap || \
+        fatal "failed to configure swap device"
+
+    dumpadm -y -d /dev/zvol/dsk/${SYS_ZPOOL}/dump || \
+        fatal "failed to configure dump device"
+
+    ln -s /${SYS_ZPOOL}/global/cores /cores
+
+    [[ -f /${SYS_ZPOOL}/currbooted ]] && \
+        mv /${SYS_ZPOOL}/currbooted /${SYS_ZPOOL}/lastbooted
+
+    uname -v >/${SYS_ZPOOL}/currbooted
+
+    echo "NOTICE: zpool loaded" >>/dev/console
+fi
+
+exit $SMF_EXIT_OK
+
