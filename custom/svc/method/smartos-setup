@@ -23,7 +23,7 @@ export PATH=/opt/custom/bin:/usr/sbin:/usr/bin
 case "$1" in
 'start')
     # Hostname!
-    hostname=$(. /usbkey/config ; echo ${hostname})
+    hostname=$(. /usbkey/config ; echo ${hostname} | tr '.' '_')
     if [[ -n ${hostname} ]]; then
          hostname "${hostname}" && hostname > /etc/nodename
     fi
