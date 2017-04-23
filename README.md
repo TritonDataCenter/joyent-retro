@@ -113,6 +113,12 @@ using something like:
 imgadm install -f joyent-retro-20141030T081701Z-1.0.9.zvol.gz -m joyent-retro-20141030T081701Z-1.0.9.manifest
 ```
 
+or:
+
+```
+sdc-imgadm import -f joyent-retro-20141030T081701Z-1.0.9.zvol.gz -m joyent-retro-20141030T081701Z-1.0.9.manifest
+```
+
 depending whether one wants to provision using `vmadm` or some component that
 goes through the Triton stack.
 
