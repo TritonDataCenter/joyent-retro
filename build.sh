@@ -58,6 +58,14 @@ if [[ -z ${VERSION} ]]; then
     exit 2
 fi
 
+# Only expand the version used in the manifest, to avoid / or other
+# troublesome characters in a file name
+MANIFEST_VERSION=VERSION
+if [[ -v GIT_BRANCH ]]  &&  [[ ! "$GIT_BRANCH" =~ "master" ]]; then
+    MANIFEST_VERSION="${VERSION}-${GIT_BRANCH}-${GIT_SHA}"
+    echo "Jenkins branch build detected. Version: ${MANIFEST_VERSION}"
+fi
+
 if [[ ! -f data/${PLATFORM} ]]; then
     echo "Missing ${PLATFORM}" >&2
     echo "Maybe try /Joyent_Dev/public/old_platform_builds or wherever..." >&2
@@ -99,6 +107,9 @@ if [[ ${ca_cert_age} -gt 86400 ]]; then
     fi
     cp ./data/ca-bundle.crt custom/etc/ssl/ca-bundle.crt
 fi
+
+# Avoid later ambiguity
+echo "$MANIFEST_VERSION" > custom/etc/retro-version
 
 EXCLUDES=
 # New mdata-get (that works in the GZ) was added with TOOLS-292 in Oct 2013.
@@ -230,10 +241,11 @@ echo "=> Building manifest..."
 cat img/manifest.tmpl | gsed \
     -e "s|{{DATE}}|${DATE}|g" \
     -e "s|{{PLATFORM}}|${PLATFORM_VERSION}|g" \
+    -e "s|{{BUILD_TAG}}|${BUILD_TAG}|g" \
     -e "s|{{SIZE}}|${SIZE}|g" \
     -e "s|{{SHA1}}|${SHA1}|g" \
     -e "s|{{UUID}}|${UUID}|g" \
-    -e "s|{{VERSION}}|${VERSION}|g" \
+    -e "s|{{VERSION}}|${MANIFEST_VERSION}|g" \
     > ${TOP}/stage/${FILENAME_BASE}.manifest
 
 mkdir -p ${TOP}/output
