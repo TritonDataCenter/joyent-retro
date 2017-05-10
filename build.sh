@@ -61,7 +61,7 @@ fi
 # Only expand the version used in the manifest, to avoid / or other
 # troublesome characters in a file name
 MANIFEST_VERSION=VERSION
-if [[ -v GIT_BRANCH ]]  &&  [[ ! "$GIT_BRANCH" =~ "master" ]]; then
+if [[ ! -z ${GIT_BRANCH} ]] && [[ ! "$GIT_BRANCH" =~ "master" ]]; then
     MANIFEST_VERSION="${VERSION}-${GIT_BRANCH}-${GIT_SHA}"
     echo "Jenkins branch build detected. Version: ${MANIFEST_VERSION}"
 fi
