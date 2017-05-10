@@ -62,7 +62,7 @@ fi
 # troublesome characters in a file name
 MANIFEST_VERSION=VERSION
 if [[ ! -z ${GIT_BRANCH} ]] && [[ ! "$GIT_BRANCH" =~ "master" ]]; then
-    MANIFEST_VERSION="${VERSION}-${GIT_BRANCH}-${GIT_SHA}"
+    MANIFEST_VERSION="${VERSION}-${GIT_BRANCH}-${GIT_COMMIT}"
     echo "Jenkins branch build detected. Version: ${MANIFEST_VERSION}"
 fi
 
