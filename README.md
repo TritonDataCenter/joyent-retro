@@ -149,3 +149,5 @@ to enable xtrace logging from the build script.
    that networking works.
  * Smaller (256M?) USB template image so we can import even faster.
  * Ability to customize network setup if desired?
+ * When something goes horribly wrong in the init process, we should generate a
+   root password which allows the person debugging to get in and figure it out.

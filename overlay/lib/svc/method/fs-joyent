@@ -19,7 +19,7 @@
 #
 # CDDL HEADER END
 #
-# Copyright (c) 2015 Joyent Inc.
+# Copyright (c) 2017 Joyent Inc.
 
 set -o xtrace
 
@@ -238,8 +238,15 @@ if [ $? -ne 0 ]; then
         destroy_zpools
     fi
 
+    # Find the USB Key
+    USB_KEY=$(disklist -n | cut -d' ' -f1)
+
     mkdir -p /usbkey \
-        && mount -F pcfs -o foldcase /dev/dsk/c0d0p1 /usbkey
+        && mount -F pcfs -o foldcase /dev/dsk/${USB_KEY}p1 /usbkey
+
+    if [[ ! -f /usbkey/custom.tgz ]]; then
+        fatal "failed to mount /usbkey or missing /usbkey/custom.tgz"
+    fi
 
     CREATED_OPT="false"
 
