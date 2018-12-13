@@ -6,7 +6,7 @@
 #
 
 #
-# Copyright (c) 2015, Joyent, Inc.
+# Copyright (c) 2018, Joyent, Inc.
 #
 
 #
@@ -52,7 +52,7 @@ case "$1" in
     INT_CIDR=172.16.9.1/24
     INT_NET=172.16.9.0/24
     EXT_IP=${ext_ip}
-    EXT_IF=e1000g0
+    EXT_IF=$(dladm show-phys -po link | head -1)
 
     # Networking
     dladm create-vnic -l ${INT_ETHERSTUB} ${INT_IF}
