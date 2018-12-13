@@ -1,0 +1,23 @@
+#!/bin/bash
+#
+# This exists for OS-7445. We put it in /system/usr/bin because that's first on
+# the PATH for sysinfo, so this version will get run instead of the
+# /usr/sbin/smbios being run directly.
+#
+# With this in place, we'll fix the UUID to always match the Triton UUID even
+# on bhyve and even with older platforms.
+#
+
+# mdata-get will ensure we're matching Triton, if it's available (which it
+# really should always be, except bugs).
+UUID=$(/usr/sbin/mdata-get sdc:uuid)
+if [[ -z ${UUID} ]]; then
+    # If for some reason we couldn't use mdata-get, the smbios Serial Number
+    # seems to always match the correct UUID even on bhyve+SmartOS.
+    UUID=$(/usr/sbin/smbios -t 1 \
+        | /usr/bin/grep "Serial Number: "
+        | /usr/bin/awk '{ print $3}')
+fi
+
+/usr/sbin/smbios $* \
+    | /usr/bin/sed -e "s/UUID: .*$/UUID: ${UUID}/"
