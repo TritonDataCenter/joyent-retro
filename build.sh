@@ -43,7 +43,7 @@ TOP=`pwd`
 
 # We download a recent set of CA certs since the ones in ancient platforms are
 # ancient. See https://curl.haxx.se/docs/caextract.html
-CERT_URL="https://curl.haxx.se/ca/cacert.pem"
+CERT_URL="https://curl.se/ca/cacert.pem"
 
 PLATFORM_VERSION=$1
 if [[ -z ${PLATFORM_VERSION} ]]; then
