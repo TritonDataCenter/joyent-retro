@@ -35,7 +35,6 @@ case "$1" in
     svcadm disable svc:/network/dns/multicast:default || /bin/true
 
     # NOPE
-    svcadm disable svc:/network/smtp:sendmail svc:/network/sendmail-client:default
     for i in $(seq 2 6); do svcadm disable svc:/system/console-login:vt${i}; done
     svcadm disable svc:/system/smartdc/vmadmd:default
 
