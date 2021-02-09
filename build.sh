@@ -83,7 +83,6 @@ fi
 if [[ ${ca_cert_age} -gt 86400 ]]; then
     # CA certs so curl https:// can work
     echo "=> Grabbing latest CA certs... (current is ${ca_cert_age}s old)"
-    mkdir -p custom/etc/ssl/certs
     curl -o data/ca-bundle.crt.new ${CERT_URL}
     if [[ $? -eq 0 && -s data/ca-bundle.crt.new ]]; then
         mv data/ca-bundle.crt.new data/ca-bundle.crt
@@ -98,6 +97,7 @@ if [[ ${ca_cert_age} -gt 86400 ]]; then
         exit 1
     fi
 fi
+mkdir -p custom/etc/ssl
 cp ./data/ca-bundle.crt custom/etc/ssl/ca-bundle.crt
 
 EXCLUDES=
