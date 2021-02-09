@@ -97,8 +97,8 @@ if [[ ${ca_cert_age} -gt 86400 ]]; then
         echo "** Failed to get CA bundle (too small)"
         exit 1
     fi
-    cp ./data/ca-bundle.crt custom/etc/ssl/ca-bundle.crt
 fi
+cp ./data/ca-bundle.crt custom/etc/ssl/ca-bundle.crt
 
 EXCLUDES=
 # New mdata-get (that works in the GZ) was added with TOOLS-292 in Oct 2013.
