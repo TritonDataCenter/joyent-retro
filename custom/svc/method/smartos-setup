@@ -6,7 +6,7 @@
 #
 
 #
-# Copyright (c) 2018, Joyent, Inc.
+# Copyright 2021 Joyent, Inc.
 #
 
 #
@@ -107,7 +107,8 @@ EOF
     if mdata-get root_authorized_keys >/root/.ssh/authorized_keys.new; then
         cp /root/.ssh/authorized_keys /root/.ssh/authorized_keys.old
         cat /root/.ssh/authorized_keys.{new,old} | sort \
-            | grep "^ssh" | uniq > /root/.ssh/authorized_keys.replacement
+            | grep -E '^(ssh|ecdsa)' | uniq \
+            > /root/.ssh/authorized_keys.replacement
         mv /root/.ssh/authorized_keys.replacement /root/.ssh/authorized_keys
         rm -f /root/.ssh/authorized_keys.{new,old}
     fi
