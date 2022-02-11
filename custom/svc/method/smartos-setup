@@ -55,7 +55,7 @@ case "$1" in
     EXT_IF=$(dladm show-phys -po link | head -1)
 
     # Networking
-    dladm create-vnic -l ${INT_ETHERSTUB} ${INT_IF}
+    dladm create-vnic -t -l ${INT_ETHERSTUB} ${INT_IF}
     ifconfig ${INT_IF} plumb ${INT_CIDR} up
     routeadm -u -e ipv4-forwarding
 

@@ -69,7 +69,7 @@ dns_resolvers=8.8.8.8,8.8.4.4
 dns_domain=${DNS_DOMAIN}
 ntp_hosts=0.smartos.pool.ntp.org
 hostname=${HOSTNAME}
-etherstub="vswitch0"
+etherstub=vswitch0
 EOF
     fi
 
