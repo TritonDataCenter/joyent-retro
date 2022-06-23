@@ -40,8 +40,11 @@ case "$1" in
     # Don't need mDNS spewing errors
     svcadm disable svc:/network/dns/multicast:default || /bin/true
 
-    # NOPE
-    svcadm disable svc:/network/smtp:sendmail svc:/network/sendmail-client:default
+    # Disable sendmail unless specifically requested
+    if [[ "${CONFIG_sendmail}" != "yes" ]]; then
+        svcadm disable svc:/network/smtp:sendmail svc:/network/sendmail-client:default
+    fi
+
     for i in $(seq 2 6); do svcadm disable svc:/system/console-login:vt${i}; done
     svcadm disable svc:/system/smartdc/vmadmd:default
 
