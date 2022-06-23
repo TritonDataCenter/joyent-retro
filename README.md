@@ -13,12 +13,12 @@ image to give us a stable build target.
 ## Screenshot
 
 ```txt
-         __ _____ __ __ _____ _____ _____    _____ _____ _____ _____ _____
-      __|  |     |  |  |   __|   | |_   _|  | __  |   __|_   _| __  |     |
-     |  |  |  |  |_   _|   __| | | | | |    |    -|   __| | | |    -|  |  |
-     |_____|_____| |_| |_____|_|___| |_|    |__|__|_____| |_| |__|__|_____|
+   _____ _____ _____ _____ _____ _____ _____    _____ _____ _____ _____ _____
+  |   __|     |  _  | __  |_   _|     |   __|  | __  |   __|_   _| __  |     |
+  |__   | | | |     |    -| | | |  |  |__   |  |    -|   __| | | |    -|  |  |
+  |_____|_|_|_|__|__|__|__| |_| |_____|_____|  |__|__|_____| |_| |__|__|_____|
 
-                                         Joyent Live Image v0.147+
+                                         SmartOS Live Image v0.147+
                                           build: 20130506T233003Z
 
                                  .       .
@@ -104,23 +104,23 @@ in files being created in the output/ directory that look like:
 ```shell
 # ls -l output/
 total 160747
--rw-r--r-- 1 root root       808 Apr 22 22:18 joyent-retro-20141030T081701Z-1.0.9.manifest
--rw-r--r-- 1 root root 164408689 Apr 22 22:17 joyent-retro-20141030T081701Z-1.0.9.zvol.gz
+-rw-r--r-- 1 root root       808 Apr 22 22:18 smartos-retro-20141030T081701Z-1.0.9.manifest
+-rw-r--r-- 1 root root 164408689 Apr 22 22:17 smartos-retro-20141030T081701Z-1.0.9.zvol.gz
 #
 ```
 
 These files can be pushed to an imgapi (using for example the [SDC imgapi cli
-tools](https://github.com/joyent/sdc-imgapi-cli). Or pulled into a local machine
-using something like:
+tools](https://github.com/TritonDataCenter/sdc-imgapi-cli). Or pulled into a
+local machine using something like:
 
 ```shell
-imgadm install -f joyent-retro-20141030T081701Z-1.0.9.zvol.gz -m joyent-retro-20141030T081701Z-1.0.9.manifest
+imgadm install -f smartos-retro-20141030T081701Z-1.0.9.zvol.gz -m smartos-retro-20141030T081701Z-1.0.9.manifest
 ```
 
 or:
 
 ```shell
-sdc-imgadm import -f joyent-retro-20141030T081701Z-1.0.9.zvol.gz -m joyent-retro-20141030T081701Z-1.0.9.manifest
+sdc-imgadm import -f smartos-retro-20141030T081701Z-1.0.9.zvol.gz -m smartos-retro-20141030T081701Z-1.0.9.manifest
 ```
 
 depending whether one wants to provision using `vmadm` or some component that

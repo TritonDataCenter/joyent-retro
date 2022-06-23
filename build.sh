@@ -203,7 +203,7 @@ sync; sync # superstition
 # We guaranteed earlier we have a delegated dataset, so we can use zfs commands
 # here and actually create the image.
 DATE=$(date +%Y-%m-%dT%H:%M:%S.000Z)
-FILENAME_BASE="joyent-retro-${PLATFORM_VERSION}-${VERSION}"
+FILENAME_BASE="smartos-retro-${PLATFORM_VERSION}-${VERSION}"
 UUID=$(uuid -v4)
 
 DATASET="zones/$(zonename)/data/${UUID}"
