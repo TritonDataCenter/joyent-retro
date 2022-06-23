@@ -21,6 +21,7 @@
 #
 #
 # Copyright 2011 Joyent, Inc.  All rights reserved.
+# Copyright 2022 MNX Cloud, Inc.
 # Use is subject to license terms.
 
 set -o errexit
@@ -57,7 +58,7 @@ case "$1" in
         [[ ${HOSTNAME} =~ ${SHORT_ID} ]] || HOSTNAME="${SHORT_ID}"
         [[ -z ${HOSTNAME} ]] && HOSTNAME=$(mdata-get sdc:alias)
         DNS_DOMAIN=$(mdata-get sdc:dns_domain || /bin/true)
-        [[ -z ${DNS_DOMAIN} ]] && DNS_DOMAIN="joyent.us"
+        [[ -z ${DNS_DOMAIN} ]] && DNS_DOMAIN="smartos.org"
 
         (cat > /usbkey/config) <<EOF
 admin_nic=${MAC}
