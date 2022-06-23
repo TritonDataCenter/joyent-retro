@@ -7,6 +7,7 @@
 
 #
 # Copyright 2021 Joyent, Inc.
+# Copyright 2022 MNX Cloud, Inc.
 #
 
 #
@@ -16,19 +17,22 @@
 set -o xtrace
 
 . /lib/svc/share/smf_include.sh
+. /lib/sdc/config.sh
 
 cd /
 export PATH=/opt/custom/bin:/usr/sbin:/usr/bin
 
 case "$1" in
 'start')
+    # This puts config vars in CONFIG_
+    load_sdc_config
+    load_sdc_sysinfo
+
     # Hostname!
-    hostname=$(. /usbkey/config ; echo ${hostname} | tr '.' '_')
+    hostname=$(echo ${CONFIG_hostname} | tr '.' '_')
     if [[ -n ${hostname} ]]; then
          hostname "${hostname}" && hostname > /etc/nodename
     fi
-    ext_ip=$(. /usbkey/config ; echo ${admin_ip})
-    [[ -n ${ext_ip} ]] || exit $SMF_EXIT_ERR_FATAL
 
     # Don't need Ur
     svcadm disable svc:/smartdc/agent/ur:default || /bin/true
@@ -46,25 +50,29 @@ case "$1" in
         rm -rf /root && ln -s /opt/custom/root /root
     fi
 
-    # We'll use 172.16.9.0/24 because this doesn't conflict with the lab
-    INT_ETHERSTUB=vswitch0
-    INT_IF=vnic0
-    INT_CIDR=172.16.9.1/24
-    INT_NET=172.16.9.0/24
-    EXT_IP=${ext_ip}
-    EXT_IF=$(dladm show-phys -po link | head -1)
+    # Configure NAT unless specifically requested not to.
+    if [[ "${CONFIG_nat}" != "no" ]]; then
+        [[ -n "${CONFIG_admin_ip}" ]] || exit $SMF_EXIT_ERR_FATAL
 
-    # Networking
-    dladm create-vnic -t -l ${INT_ETHERSTUB} ${INT_IF}
-    ifconfig ${INT_IF} plumb ${INT_CIDR} up
-    routeadm -u -e ipv4-forwarding
+        # We'll use 172.16.9.0/24 because this doesn't conflict with the lab
+        INT_ETHERSTUB=${CONFIG_etherstub}
+        INT_IF=vnic0
+        INT_CIDR=172.16.9.1/24
+        INT_NET=172.16.9.0/24
+        EXT_IP=${CONFIG_admin_ip}
+        EXT_IF=$(dladm show-phys -po link | head -1)
 
-    # Wipe existing rules
-    rm -f /etc/ipf/ipnat.conf
-    rm -f /etc/ipf/ipf.conf
+        # Networking
+        dladm create-vnic -t -l ${INT_ETHERSTUB} ${INT_IF}
+        ifconfig ${INT_IF} plumb ${INT_CIDR} up
+        routeadm -u -e ipv4-forwarding
 
-    # FW rules
-    cat << EOF > /etc/ipf/ipf.conf
+        # Wipe existing rules
+        rm -f /etc/ipf/ipnat.conf
+        rm -f /etc/ipf/ipf.conf
+
+        # FW rules
+        cat << EOF > /etc/ipf/ipf.conf
 ## Always allow lo0
 pass in quick on lo0 all
 pass out quick on lo0 all
@@ -92,16 +100,17 @@ block in quick log first on ${EXT_IF} all
 block out quick log first on ${EXT_IF} all
 EOF
 
-    # NAT rules
-    cat << EOF > /etc/ipf/ipnat.conf
+        # NAT rules
+        cat << EOF > /etc/ipf/ipnat.conf
 map ${EXT_IF} ${INT_NET} -> 0/32 portmap tcp/udp auto
 map ${EXT_IF} ${INT_NET} -> 0/32
 EOF
 
-    # launch ipfilter and load the NAT rules
-    svcadm enable ipfilter
-    ipf -E -Fa -v -f /etc/ipf/ipf.conf
-    ipnat -C -v -f /etc/ipf/ipnat.conf
+        # launch ipfilter and load the NAT rules
+        svcadm enable ipfilter
+        ipf -E -Fa -v -f /etc/ipf/ipf.conf
+        ipnat -C -v -f /etc/ipf/ipnat.conf
+    fi
 
     # add any missing keys from root_authorized_keys
     if mdata-get root_authorized_keys >/root/.ssh/authorized_keys.new; then
@@ -121,4 +130,3 @@ EOF
     ;;
 esac
 exit $SMF_EXIT_OK
-
